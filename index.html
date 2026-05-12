@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KRX CSV 백테스팅</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <p class="eyebrow">STATIC KRX BACKTESTING APP</p>
+      <h1>KRX CSV 백테스팅</h1>
+      <p class="lead">KRX 정보데이터시스템에서 받은 개별종목 시세추이 CSV를 업로드해 투자 전략을 검증합니다.</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="notice-card">
+      <h2>사용 기준</h2>
+      <p>이 앱은 외부 API를 호출하지 않습니다. KRX에서 내려받은 CSV 파일을 업로드한 뒤 브라우저 내부에서 백테스팅을 수행합니다.</p>
+      <p class="small-text">필수 컬럼: 일자, 종가, 시가, 고가, 저가, 거래량</p>
+    </section>
+
+    <section class="grid two-columns">
+      <article class="card">
+        <div class="section-title">
+          <span>1</span>
+          <h2>KRX CSV 불러오기</h2>
+        </div>
+        <div class="field-group">
+          <label for="stockName">종목명 또는 종목코드</label>
+          <input id="stockName" type="text" placeholder="예: 삼성전자 005930, 현대차 005380, NAVER 035420" />
+          <p class="help-text">결과 화면 표시용 입력값입니다. 백테스팅 계산은 업로드한 CSV 데이터로 수행합니다.</p>
+        </div>
+        <div class="field-group">
+          <label for="csvFile">KRX CSV 파일 업로드</label>
+          <input type="file" id="csvFile" accept=".csv,text/csv" />
+          <p class="help-text">KRX 개별종목 시세추이에서 받은 CSV 파일을 선택합니다. CP949/EUC-KR, UTF-8 인코딩을 처리합니다.</p>
+        </div>
+        <div id="dataStatus" class="status-box">아직 데이터가 로드되지 않았습니다.</div>
+      </article>
+
+      <article class="card">
+        <div class="section-title">
+          <span>2</span>
+          <h2>백테스팅 조건</h2>
+        </div>
+        <div class="field-group">
+          <label for="strategyType">전략 선택</label>
+          <select id="strategyType">
+            <option value="ma">이동평균 교차 전략</option>
+            <option value="rsi">RSI 과매도·과매수 전략</option>
+            <option value="breakout">변동성 돌파 전략</option>
+          </select>
+        </div>
+
+        <div id="maOptions" class="strategy-options">
+          <div class="form-row">
+            <div class="field-group">
+              <label for="shortMa">단기 이동평균</label>
+              <input id="shortMa" type="number" value="5" min="2" />
+            </div>
+            <div class="field-group">
+              <label for="longMa">장기 이동평균</label>
+              <input id="longMa" type="number" value="20" min="3" />
+            </div>
+          </div>
+          <p class="help-text">단기선이 장기선을 상향 돌파하면 매수하고, 하향 이탈하면 매도합니다.</p>
+        </div>
+
+        <div id="rsiOptions" class="strategy-options hidden">
+          <div class="form-row">
+            <div class="field-group">
+              <label for="rsiPeriod">RSI 기간</label>
+              <input id="rsiPeriod" type="number" value="14" min="2" />
+            </div>
+            <div class="field-group">
+              <label for="rsiBuy">매수 기준</label>
+              <input id="rsiBuy" type="number" value="30" min="1" max="99" />
+            </div>
+            <div class="field-group">
+              <label for="rsiSell">매도 기준</label>
+              <input id="rsiSell" type="number" value="70" min="1" max="99" />
+            </div>
+          </div>
+          <p class="help-text">RSI가 매수 기준 이하이면 매수하고, 매도 기준 이상이면 매도합니다.</p>
+        </div>
+
+        <div id="breakoutOptions" class="strategy-options hidden">
+          <div class="field-group">
+            <label for="breakoutK">돌파 계수 K</label>
+            <input id="breakoutK" type="number" value="0.5" min="0.1" max="2" step="0.1" />
+          </div>
+          <p class="help-text">목표가 = 전일 종가 + 전일 변동폭(고가-저가) × K. 당일 고가가 목표가 이상이면 매수하고 종가에 청산합니다.</p>
+        </div>
+
+        <div class="form-row">
+          <div class="field-group">
+            <label for="initialCapital">초기 투자금</label>
+            <input id="initialCapital" type="number" value="10000000" min="10000" step="10000" />
+          </div>
+          <div class="field-group">
+            <label for="feeRate">거래 수수료율</label>
+            <input id="feeRate" type="number" value="0.00015" min="0" step="0.00001" />
+          </div>
+        </div>
+        <button id="runBtn" class="primary-btn">백테스팅 실행</button>
+      </article>
+    </section>
+
+    <section class="card result-section">
+      <div class="section-title">
+        <span>3</span>
+        <h2>백테스팅 결과</h2>
+      </div>
+      <div class="metric-grid">
+        <div class="metric"><p>최종 자산</p><strong id="finalCapital">-</strong></div>
+        <div class="metric"><p>누적 수익률</p><strong id="totalReturn">-</strong></div>
+        <div class="metric"><p>Buy & Hold</p><strong id="buyHoldReturn">-</strong></div>
+        <div class="metric"><p>MDD</p><strong id="mdd">-</strong></div>
+        <div class="metric"><p>거래 횟수</p><strong id="tradeCount">-</strong></div>
+        <div class="metric"><p>승률</p><strong id="winRate">-</strong></div>
+      </div>
+      <p id="resultComment" class="comment-box">KRX CSV 파일을 불러온 뒤 백테스팅을 실행합니다.</p>
+    </section>
+
+    <section class="grid two-columns">
+      <article class="card chart-card">
+        <h2>가격 차트</h2>
+        <canvas id="priceChart"></canvas>
+      </article>
+      <article class="card chart-card">
+        <h2>자산 곡선</h2>
+        <canvas id="equityChart"></canvas>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>거래 내역</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>일자</th>
+              <th>구분</th>
+              <th>가격</th>
+              <th>수량</th>
+              <th>금액</th>
+              <th>수익률</th>
+            </tr>
+          </thead>
+          <tbody id="tradeTableBody">
+            <tr><td colspan="6">거래 내역이 없습니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/backtest.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
